@@ -6,22 +6,23 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rmukubvu/amakhosi/model"
 	"github.com/rmukubvu/login-service/repository"
+	"github.com/rmukubvu/login-service/store"
 	"io/ioutil"
 	"net/http"
 )
 
-func InitRouter() *mux.Router{
+func InitRouter() *mux.Router {
 	r := mux.NewRouter()
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.HandleFunc("/user", add).Methods(http.MethodPost)
 	api.HandleFunc("/user", update).Methods(http.MethodPut)
 	api.HandleFunc("/user/{id}", search).Methods(http.MethodGet)
-	api.HandleFunc("/user/validate/{id}/{pwd}", validate).Methods(http.MethodGet)
+	api.HandleFunc("/user/authenticate", authenticate).Methods(http.MethodPost)
 	return r
 }
 
-func add(response http.ResponseWriter,request *http.Request){
-	response.Header().Add("content-type","application/json")
+func add(response http.ResponseWriter, request *http.Request) {
+	response.Header().Add("content-type", "application/json")
 	user := repository.UserEntity{}
 	reqBody, err := ioutil.ReadAll(request.Body)
 	if err != nil {
@@ -36,7 +37,7 @@ func add(response http.ResponseWriter,request *http.Request){
 		return
 	}
 	//continue to unmarshal
-	if err = json.Unmarshal(reqBody, &user) ; err != nil {
+	if err = json.Unmarshal(reqBody, &user); err != nil {
 		response.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(response).Encode(generateErrorMessage(err.Error()))
 		return
@@ -52,8 +53,8 @@ func add(response http.ResponseWriter,request *http.Request){
 	json.NewEncoder(response).Encode(user)
 }
 
-func update(response http.ResponseWriter,request *http.Request){
-	response.Header().Add("content-type","application/json")
+func update(response http.ResponseWriter, request *http.Request) {
+	response.Header().Add("content-type", "application/json")
 	user := repository.UserEntity{}
 	reqBody, err := ioutil.ReadAll(request.Body)
 	if err != nil {
@@ -67,7 +68,7 @@ func update(response http.ResponseWriter,request *http.Request){
 		json.NewEncoder(response).Encode(generateErrorMessage("invalid json string"))
 		return
 	}
-	//continue to unmarshall
+	//continue to unmarshal
 	json.Unmarshal(reqBody, &user)
 	//add to database
 	err = user.UpdateRecord()
@@ -80,41 +81,51 @@ func update(response http.ResponseWriter,request *http.Request){
 	json.NewEncoder(response).Encode(user)
 }
 
-func search(w http.ResponseWriter, req *http.Request) {
+func search(response http.ResponseWriter, req *http.Request) {
 	pathParams := mux.Vars(req)
-	w.Header().Set("Content-Type", "application/json")
+	response.Header().Set("Content-Type", "application/json")
 
 	if val, ok := pathParams["id"]; !ok {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(generateErrorMessage("id not specified or wrong id format")))
+		response.WriteHeader(http.StatusInternalServerError)
+		response.Write([]byte(generateErrorMessage("id not specified or wrong id format")))
 		return
 	} else {
 		user, err := repository.Search(val)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(generateErrorMessage(err.Error()))
+			response.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(response).Encode(generateErrorMessage(err.Error()))
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(user)
+		response.WriteHeader(http.StatusOK)
+		json.NewEncoder(response).Encode(user)
 	}
 }
 
-func validate(w http.ResponseWriter, req *http.Request) {
-	pathParams := mux.Vars(req)
-	w.Header().Set("Content-Type", "application/json")
-
-	userName:= pathParams["id"]
-	password:= pathParams["pwd"]
-
-	response := repository.ValidateLogin(userName,password)
-	if response.IsError {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(response)
+func authenticate(response http.ResponseWriter, req *http.Request) {
+	response.Header().Set("Content-Type", "application/json")
+	user := store.Authenticate{}
+	reqBody, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		response.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(response).Encode(generateErrorMessage(err.Error()))
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	//check if its a valid json string
+	if ok := validJson(string(reqBody)); !ok {
+		response.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(response).Encode(generateErrorMessage("invalid json string"))
+		return
+	}
+	//continue to unmarshal
+	err = json.Unmarshal(reqBody, &user)
+	if err != nil {
+		response.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(response).Encode(err.Error())
+		return
+	}
+	result := repository.AuthenticateLogin(user)
+	response.WriteHeader(http.StatusOK)
+	json.NewEncoder(response).Encode(result)
 }
 
 func validJson(str string) bool {

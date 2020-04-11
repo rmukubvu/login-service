@@ -14,10 +14,14 @@ func (u *UserEntity) Update() error {
 	return u.UpdateRecord()
 }
 
-func Search(userName string) (store.User,error){
+func Search(userName string) (store.User, error) {
 	return store.FetchRecord(userName)
 }
 
-func ValidateLogin(userName,passWord string) store.LoginResponse {
-	return store.ValidateLogin(userName,passWord)
+func AuthenticateLogin(u store.Authenticate) store.LoginResponse {
+	return validateLogin(u.UserName, u.Password)
+}
+
+func validateLogin(userName, passWord string) store.LoginResponse {
+	return store.ValidateLogin(userName, passWord)
 }

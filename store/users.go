@@ -10,36 +10,41 @@ import (
 )
 
 var (
-	cache             = make(map[string]User)
-	userNotExistError = errors.New("user does not exist")
+	cache                 = make(map[string]User)
+	userNotExistError     = errors.New("user does not exist")
 	passwordMismatchError = errors.New("user/password combination is invalid")
-	client            *mongo.Client
-	db                *mongo.Database
+	client                *mongo.Client
+	db                    *mongo.Database
 )
 
 const (
-	schemaName = "amakhosi_logins"
+	schemaName          = "amakhosi_logins"
 	loginCollectionName = "logins"
-	databaseUri = "mongodb://localhost:27017"
+	databaseUri         = "mongodb://localhost:27017"
 )
 
 type User struct {
-	UserId    primitive.ObjectID    `json:"_id,omitempty" bson:"_id,omitempty"`
-	UserName  string `json:"username,omitempty" bson:"username,omitempty"`
-	Password  string `json:"password,omitempty" bson:"password,omitempty"`
-	IsEnabled int    `json:"is_enabled,omitempty" bson:"is_enabled,omitempty"`
-	FirstName string `json:"first_name,omitempty" bson:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty" bson:"last_name,omitempty"`
+	UserId    primitive.ObjectID `json:"_id" bson:"_id,omitempty"`
+	UserName  string             `json:"username" bson:"username,omitempty"`
+	Password  string             `json:"password" bson:"password,omitempty"`
+	IsEnabled int                `json:"isEnabled" bson:"is_enabled,omitempty"`
+	FirstName string             `json:"firstName" bson:"first_name,omitempty"`
+	LastName  string             `json:"lastName" bson:"last_name,omitempty"`
+}
+
+type Authenticate struct {
+	UserName string `json:"username"`
+	Password string `json:"password"`
 }
 
 type LoginResponse struct {
 	Response string `json:"response"`
-	IsError bool `json:"login_ok"`
+	IsError  bool   `json:"error"`
 	User
 }
 
 //do an update if the record exists
-func ValidateLogin(userName,passWord string) LoginResponse {
+func ValidateLogin(userName, passWord string) LoginResponse {
 	//fetch the user first
 	u, err := FetchRecord(userName)
 	//_, exists, u := Search(userName)
@@ -67,7 +72,7 @@ func ValidateLogin(userName,passWord string) LoginResponse {
 	}
 }
 
-func Search(userName string) (canInsert , exists bool,u User) {
+func Search(userName string) (canInsert, exists bool, u User) {
 	//get the user from the map
 	u = cache[userName]
 	if u == (User{}) {
@@ -81,12 +86,12 @@ func Search(userName string) (canInsert , exists bool,u User) {
 	return
 }
 
-func (u *User) AddToMap(){
+func (u *User) AddToMap() {
 	cache[u.UserName] = *u
 }
 
-func loadMap(){
-	if users:= fetchAllRecords(); users!=nil {
+func loadMap() {
+	if users := fetchAllRecords(); users != nil {
 		for _, u := range users {
 			cache[u.UserName] = u
 		}
@@ -94,7 +99,7 @@ func loadMap(){
 }
 
 func getHashedPassword(password string) string {
-	h:= sha1.New()
+	h := sha1.New()
 	h.Write([]byte(password))
 	bs := h.Sum(nil)
 	return hex.EncodeToString(bs)
